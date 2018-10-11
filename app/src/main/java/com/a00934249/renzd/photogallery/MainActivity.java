@@ -1,12 +1,20 @@
 package com.a00934249.renzd.photogallery;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -25,6 +33,7 @@ import android.widget.TextView;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Text;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -32,6 +41,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -53,99 +63,285 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, LocationListener  {
     final static int REQUEST_IMAGE_CAPTURE = 1;
-    public static final int SEARCH_ACTIVITY_REQUEST_CODE = 0;
-    public static final int SEARCH_LIST_REQUEST_CODE = 2;
-    private String currentPhotoPath = null;
-    private int currentPhotoIndex = 0;
     private ArrayList<String> photoGallery;
-    private ArrayList<String> gallerySearchList;
+    //private ArrayList<String> gallerySearchList;
     public String caption;
-    public Boolean onMainGallery = true;
+    //public Boolean onMainGallery = true;
+    public DataHelper helperActivity;
 
     ImageView imageView;
     Button buttonLeft;
     Button buttonRight;
     EditText et;
+    Button buttonCamera;
+    private LocationManager locationManager;
+
+    TextView tvLat;
+    TextView tvLong;
+
+    String latitude;
+    String longitude;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        buttonLeft = (Button)findViewById(R.id.btnLeft);
-        buttonRight = (Button)findViewById(R.id.btnRight);
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        tvLat = (TextView)findViewById(R.id.tvLat);
+        tvLong = (TextView)findViewById(R.id.tvLong);
+        helperActivity = new DataHelper();
+
+        buttonLeft = (Button) findViewById(R.id.btnLeft);
+        buttonRight = (Button) findViewById(R.id.btnRight);
         buttonLeft.setOnClickListener(this);
         buttonRight.setOnClickListener(this);
 
+        buttonCamera = (Button) findViewById(R.id.btnCamera);
+        buttonCamera.setOnClickListener(takePhoto);
 
-        caption = "topleft";
-        et = (EditText)findViewById(R.id.captionText);
+        et = (EditText) findViewById(R.id.captionText);
 
-        imageView = (ImageView)findViewById(R.id.ivMain);
+        imageView = (ImageView) findViewById(R.id.ivMain);
         Date minDate = new Date(Long.MIN_VALUE);
         Date maxDate = new Date(Long.MAX_VALUE);
 
-        photoGallery = populateGallery(minDate, maxDate);
+        photoGallery = helperActivity.populateGallery(minDate, maxDate, photoGallery, latitude, longitude);
         Log.d("onCreate, size", Integer.toString(photoGallery.size()));
         if (photoGallery.size() > 0) {
-            currentPhotoPath = photoGallery.get(currentPhotoIndex);
+            helperActivity.setCurrentPhotoPath(photoGallery.get(helperActivity.getCurrentPhotoIndex()));
+            //currentPhotoPath = photoGallery.get(currentPhotoIndex);
         }
     }
 
-    //unused
+
+            //unused
+    /*
     private View.OnClickListener filterListener = new View.OnClickListener() {
         public void onClick(View v) {
             Intent i = new Intent(MainActivity.this, SearchActivity.class);
             startActivityForResult(i, SEARCH_ACTIVITY_REQUEST_CODE);
         }
     };
+    */
+
+
+    public View.OnClickListener takePhoto = new View.OnClickListener() {
+        public void onClick(View v) {
+            helperActivity.takePicture(v, MainActivity.this, et);
+        }
+    };
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         //NOT USED
+        /*
         if (requestCode == SEARCH_ACTIVITY_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 Log.d("createImageFile", data.getStringExtra("STARTDATE"));
                 Log.d("createImageFile", data.getStringExtra("STARTDATE"));
 
-                photoGallery = populateGallery(new Date(), new Date());
+                photoGallery = helperActivity.populateGallery(new Date(), new Date(), gallerySearchList);
                 Log.d("onCreate, size", Integer.toString(photoGallery.size()));
                 currentPhotoIndex = 0;
                 currentPhotoPath = photoGallery.get(currentPhotoIndex);
 
-                displayPhoto(currentPhotoPath);
+                helperActivity.displayPhoto(currentPhotoPath, imageView);
             }
-        }
+        }*/
         //On image request, populate the gallery
         //then, display current index photo from the gallery array
         if (requestCode == REQUEST_IMAGE_CAPTURE) {
             if (resultCode == RESULT_OK) {
 
+
                 Log.d("createImageFile", "Picture Taken");
-                photoGallery = populateGallery(new Date(), new Date());
-                currentPhotoIndex = photoGallery.size() - 1;
+                photoGallery = helperActivity.populateGallery(new Date(), new Date(), photoGallery, latitude, longitude);
 
-                currentPhotoPath = photoGallery.get(currentPhotoIndex);
-                displayPhoto(currentPhotoPath);
+                helperActivity.setCurrentPhotoIndex(photoGallery.size() - 1);
+                helperActivity.setCurrentPhotoPath(photoGallery.get(helperActivity.getCurrentPhotoIndex()));
 
-                onMainGallery = true;
+                //currentPhotoIndex = photoGallery.size() - 1;
+                //currentPhotoPath = photoGallery.get(currentPhotoIndex);
+
+                helperActivity.displayPhoto(helperActivity.getCurrentPhotoPath(), imageView);
+
+                //onMainGallery = true;
+                helperActivity.setOnMainGallery(true);
             }
         }
         //Call search gallery
         if (requestCode == 999 && resultCode == RESULT_OK) {
-            searchGallery();
+            String[] searchData = {
+                    data.getStringExtra("GET_CAPTION_TEXT"),
+                    data.getStringExtra("GET_FROM_DATE"),
+                    data.getStringExtra("GET_TO_DATE"),
+                    data.getStringExtra("GET_FROM_TIME"),
+                    data.getStringExtra("GET_TO_TIME"),
+                    data.getStringExtra("GET_LAT"),
+                    data.getStringExtra("GET_LON")
+            };
+            /*
+            for (int xy = 0; xy < searchData.length; xy++) {
+                Log.d("Strings: ", searchData[xy]);
+            }*/
+
+            try {
+
+                helperActivity.searchGallery(searchData, imageView);
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
         }
     }
+
+    /**
+     * Determines the index of current photo
+     * and Display that photo
+     * Checks if on main gallery or the search gallery arraylist
+     * @param v view
+     */
+    public void onClick( View v) {
+        switch (v.getId()) {
+            case R.id.btnLeft:
+                //--currentPhotoIndex;
+                helperActivity.setCurrentPhotoIndex(helperActivity.getCurrentPhotoIndex()-1);
+                break;
+            case R.id.btnRight:
+                //++currentPhotoIndex;
+                helperActivity.setCurrentPhotoIndex(helperActivity.getCurrentPhotoIndex()+1);
+                break;
+            default:
+                break;
+        }
+        Log.d("onClick", "before index 0 check");
+        if (helperActivity.getCurrentPhotoIndex() < 0)
+            helperActivity.setCurrentPhotoIndex(0);
+        Log.d("onClick", "before index 0 check");
+        if (helperActivity.getOnMainGallery() == true) {
+            if (photoGallery.size() != 0) {
+                Log.d("onClick", "before photogallery size check");
+                if (helperActivity.getCurrentPhotoIndex() >= photoGallery.size())
+                    helperActivity.setCurrentPhotoIndex(photoGallery.size() - 1);
+
+                helperActivity.setCurrentPhotoPath(photoGallery.get(helperActivity.getCurrentPhotoIndex()));
+                Log.d("photoleft, size", Integer.toString(photoGallery.size()));
+            }
+        } else {
+            if (helperActivity.getGallerySearchList().size() != 0) {
+                Log.d("onClick", "before gallerySearchList size check");
+                if (helperActivity.getCurrentPhotoIndex() >= helperActivity.getGallerySearchList().size()) {
+                    Log.d("onClick", "after gallerySearchList size check");
+                    helperActivity.setCurrentPhotoIndex(helperActivity.getGallerySearchList().size() - 1);
+                }
+
+                helperActivity.setCurrentPhotoPath(helperActivity.getGallerySearchList().get(helperActivity.getCurrentPhotoIndex()));
+                //helperActivity.setCurrentPhotoPath(gallerySearchList.get(helperActivity.getCurrentPhotoIndex()));
+                Log.d("photoleft, size", Integer.toString(helperActivity.getGallerySearchList().size()));
+            }
+        }
+        //Log.d("photoleft, index", Integer.toString(currentPhotoIndex));
+        helperActivity.displayPhoto(helperActivity.getCurrentPhotoPath(), imageView);
+
+    }
+
+    /**
+     * Opens the search activity
+     * @param v
+     */
+    public void goToSearch(View v) {
+        startActivityForResult(new Intent(getApplicationContext(),SearchActivity.class), 999);
+    }
+
+    /**
+     * Opens the settings activity
+     * currently empty
+     * @param v
+     */
+    public void goToSettings(View v) {
+        Intent i = new Intent(this, SettingsActivity.class);
+        startActivity(i);
+    }
+
+    /**
+     * Opens the display activity
+     * @param x
+     */
+    public void goToDisplay(String x) {
+        Intent i = new Intent(this, DisplayActivity.class);
+        i.putExtra("DISPLAY_TEXT", x);
+        startActivity(i);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("inside", "onResume()");
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 400, 1, this);
+            Location location = locationManager.getLastKnownLocation(locationManager.NETWORK_PROVIDER);
+            onLocationChanged(location);
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    1);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            locationManager.removeUpdates(this);
+        }
+    }
+    @Override
+    public void onLocationChanged(Location location) {
+        TextView tvLat = (TextView) findViewById(R.id.tvLat);
+        TextView tvLng = (TextView) findViewById(R.id.tvLong);
+        latitude = String.valueOf(location.getLatitude());
+        longitude = String.valueOf(location.getLongitude());
+        tvLat.setText(latitude);
+        tvLng.setText(longitude);
+    }
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+    }
+    @Override
+    public void onProviderEnabled(String provider) {
+    }
+    @Override
+    public void onProviderDisabled(String provider) {
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        if (grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED)
+                locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        return;
+    }
+
 
     /**
      * Sets the gallery search array list and display
      * Calls the populateSearchGallery() to get searched photos
      * then displays the photo
      */
-    public void searchGallery() {
+    /*
+    public void searchGallery(String cpt) {
+        caption = cpt;
         Log.d("Before", "populateSearchGallery");
         gallerySearchList = populateSearchGallery(new Date(), new Date());
         Log.d("Passed: ", "populateSearchGallery");
@@ -160,6 +356,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             onMainGallery = false;
         }
     }
+    */
 
     /**
      * Gets photos from the external storage
@@ -168,6 +365,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * @param maxDate
      * @return photoGallery
      */
+    /*
     private ArrayList<String> populateGallery(Date minDate, Date maxDate) {
         File file = new File(Environment.getExternalStorageDirectory()
                 .getAbsolutePath(), "/Android/data/com.a00934249.renzd.photogallery/files/Pictures");
@@ -192,15 +390,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         return photoGallery;
     }
+    */
 
     /**
      * Gets photos from the external storage
      * filters the searched photos
      * and stores them in an arraylist
-     * @param minDate
-     * @param maxDate
      * @return gallerySearchList
      */
+    /*
     private ArrayList<String> populateSearchGallery(Date minDate, Date maxDate) {
         File file = new File(Environment.getExternalStorageDirectory()
                 .getAbsolutePath(), "/Android/data/com.a00934249.renzd.photogallery/files/Pictures");
@@ -242,11 +440,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Log.d("RETURN", Integer.toString(gallerySearchList.size()));
         return gallerySearchList;
     }
+    */
 
     //Sets the photo's bitmap
+    /*
     private void displayPhoto(String path) {
         imageView.setImageBitmap(BitmapFactory.decodeFile(path));
     }
+    */
 
     /**
      * Calls camera intent
@@ -254,6 +455,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * then start activity
      * @param v
      */
+    /*
     public void takePicture(View v) {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -274,6 +476,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         }
     }
+    */
 
     /**
      * Gets an image file .jpg
@@ -281,6 +484,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * @return image
      * @throws IOException
      */
+    /*
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String caption = et.getText().toString();
@@ -291,70 +495,5 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         //Log.d("createImageFile", currentPhotoPath + " DONE");
         return image;
     }
-
-
-    /**
-     * Determines the index of current photo
-     * and Display that photo
-     * Checks if on main gallery or the search gallery arraylist
-     * @param v view
-     */
-    public void onClick( View v) {
-        switch (v.getId()) {
-            case R.id.btnLeft:
-                --currentPhotoIndex;
-                break;
-            case R.id.btnRight:
-                ++currentPhotoIndex;
-                break;
-            default:
-                break;
-        }
-        if (currentPhotoIndex < 0)
-            currentPhotoIndex = 0;
-        if (onMainGallery == true) {
-            if (currentPhotoIndex >= photoGallery.size())
-                currentPhotoIndex = photoGallery.size() - 1;
-
-            currentPhotoPath = photoGallery.get(currentPhotoIndex);
-            Log.d("photoleft, size", Integer.toString(photoGallery.size()));
-        } else {
-            if (currentPhotoIndex >= gallerySearchList.size())
-                currentPhotoIndex = gallerySearchList.size() - 1;
-
-            currentPhotoPath = gallerySearchList.get(currentPhotoIndex);
-            Log.d("photoleft, size", Integer.toString(gallerySearchList.size()));
-        }
-        Log.d("photoleft, index", Integer.toString(currentPhotoIndex));
-        displayPhoto(currentPhotoPath);
-
-    }
-
-    /**
-     * Opens the search activity
-     * @param v
-     */
-    public void goToSearch(View v) {
-        startActivityForResult(new Intent(getApplicationContext(),SearchActivity.class), 999);
-    }
-
-    /**
-     * Opens the settings activity
-     * currently empty
-     * @param v
-     */
-    public void goToSettings(View v) {
-        Intent i = new Intent(this, SettingsActivity.class);
-        startActivity(i);
-    }
-
-    /**
-     * Opens the display activity
-     * @param x
-     */
-    public void goToDisplay(String x) {
-        Intent i = new Intent(this, DisplayActivity.class);
-        i.putExtra("DISPLAY_TEXT", x);
-        startActivity(i);
-    }
+    */
 }
